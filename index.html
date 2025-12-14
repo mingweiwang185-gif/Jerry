@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>HoloTree 3D</title>
+    <!-- Tailwind CSS (CDN is fine for this client-side rendered demo) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500&display=swap" rel="stylesheet">
     <style>
@@ -26,6 +27,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
+    <!-- Load Babel for in-browser compilation of TSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
     <script type="importmap">
     {
       "imports": {
@@ -34,16 +38,19 @@
         "react-dom": "https://esm.sh/react-dom@18.2.0",
         "react-dom/": "https://esm.sh/react-dom@18.2.0/",
         "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?deps=react@18.2.0",
-        "three": "https://esm.sh/three@0.160.0",
-        "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?deps=three@0.160.0,react@18.2.0,react-dom@18.2.0",
-        "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?deps=three@0.160.0,react@18.2.0,react-dom@18.2.0,@react-three/fiber@8.15.16",
-        "postprocessing": "https://esm.sh/postprocessing@6.33.3?deps=three@0.160.0",
-        "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.16.0?deps=three@0.160.0,react@18.2.0,react-dom@18.2.0,@react-three/fiber@8.15.16,postprocessing@6.33.3"
+        "three": "https://esm.sh/three@0.158.0",
+        "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?deps=three@0.158.0,react@18.2.0,react-dom@18.2.0",
+        "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?deps=three@0.158.0,react@18.2.0,react-dom@18.2.0,@react-three/fiber@8.15.16",
+        "postprocessing": "https://esm.sh/postprocessing@6.33.3?deps=three@0.158.0",
+        "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.16.0?deps=three@0.158.0,react@18.2.0,react-dom@18.2.0,@react-three/fiber@8.15.16,postprocessing@6.33.3"
       }
     }
     </script>
     <script>
       window.onerror = function(msg, url, line, col, error) {
+        // Ignore ResizeObserver loop limit exceeded which is common in 3D apps
+        if (msg && typeof msg === 'string' && msg.includes('ResizeObserver')) return;
+
         const div = document.getElementById('error-overlay');
         div.style.display = 'block';
         div.innerText = `ERROR: ${msg}\nLine: ${line}\nSource: ${url}`;
@@ -54,5 +61,8 @@
   <body>
     <div id="error-overlay"></div>
     <div id="root"></div>
+    
+    <!-- Entry Point: Load index.tsx using Babel with module support -->
+    <script type="text/babel" data-type="module" src="./index.tsx"></script>
   </body>
 </html>

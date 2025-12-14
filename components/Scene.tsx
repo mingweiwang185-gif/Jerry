@@ -73,7 +73,7 @@ const Scene: React.FC<SceneProps> = ({ handStateRef, uploadedTextures }) => {
         </group>
         
         {/* Post Processing for Glow */}
-        <EffectComposer disableNormalPass>
+        <EffectComposer enableNormalPass={false}>
             <Bloom luminanceThreshold={0.9} mipmapBlur intensity={1.2} radius={0.6} />
             <Vignette eskil={false} offset={0.1} darkness={0.8} />
         </EffectComposer>
