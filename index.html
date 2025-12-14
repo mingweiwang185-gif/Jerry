@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>HoloTree 3D</title>
-    <!-- Tailwind CSS (CDN is fine for this client-side rendered demo) -->
+    <!-- Tailwind CSS (CDN is fine for this demo, warning is harmless) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500&display=swap" rel="stylesheet">
     <style>
@@ -13,56 +13,33 @@
       /* Custom scrollbar for tech feel */
       ::-webkit-scrollbar { width: 0px; }
       canvas { touch-action: none; outline: none; }
-      
-      #error-overlay {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.9); color: red; z-index: 9999;
-        display: none; padding: 20px; font-family: monospace; white-space: pre-wrap;
-      }
     </style>
     
-    <!-- Load MediaPipe Globals -->
+    <!-- Load MediaPipe Globals (Keep as CDN for simplicity) -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-
-    <!-- Load Babel for in-browser compilation of TSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@18.2.0",
-        "react/": "https://esm.sh/react@18.2.0/",
-        "react-dom": "https://esm.sh/react-dom@18.2.0",
-        "react-dom/": "https://esm.sh/react-dom@18.2.0/",
-        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?deps=react@18.2.0",
-        "three": "https://esm.sh/three@0.158.0",
-        "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?deps=three@0.158.0,react@18.2.0,react-dom@18.2.0",
-        "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?deps=three@0.158.0,react@18.2.0,react-dom@18.2.0,@react-three/fiber@8.15.16",
-        "postprocessing": "https://esm.sh/postprocessing@6.33.3?deps=three@0.158.0",
-        "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.16.0?deps=three@0.158.0,react@18.2.0,react-dom@18.2.0,@react-three/fiber@8.15.16,postprocessing@6.33.3"
-      }
-    }
-    </script>
-    <script>
-      window.onerror = function(msg, url, line, col, error) {
-        // Ignore ResizeObserver loop limit exceeded which is common in 3D apps
-        if (msg && typeof msg === 'string' && msg.includes('ResizeObserver')) return;
-
-        const div = document.getElementById('error-overlay');
-        div.style.display = 'block';
-        div.innerText = `ERROR: ${msg}\nLine: ${line}\nSource: ${url}`;
-        console.error("Global Error Caught:", error);
-      };
-    </script>
-  </head>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "vite": "https://esm.sh/vite@^7.2.7",
+    "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@^3.0.4",
+    "@react-three/drei": "https://esm.sh/@react-three/drei@^10.7.7",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "@react-three/fiber": "https://esm.sh/@react-three/fiber@^9.4.2",
+    "three": "https://esm.sh/three@^0.182.0"
+  }
+}
+</script>
+</head>
   <body>
-    <div id="error-overlay"></div>
     <div id="root"></div>
     
-    <!-- Entry Point: Load index.tsx using Babel with module support -->
-    <script type="text/babel" data-type="module" src="./index.tsx"></script>
+    <!-- Vite Entry Point -->
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>
