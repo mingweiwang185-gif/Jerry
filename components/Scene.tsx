@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment, Sparkles } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
@@ -12,6 +12,65 @@ interface SceneProps {
   handStateRef: React.MutableRefObject<HandState>;
   uploadedTextures: THREE.Texture[];
 }
+
+const Snow = () => {
+    // Generate snow particles
+    const count = 3000;
+    const positions = useMemo(() => {
+        const pos = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) {
+            pos[i * 3] = (Math.random() - 0.5) * 80;      // x: spread wide
+            pos[i * 3 + 1] = Math.random() * 60 - 20;     // y: height
+            pos[i * 3 + 2] = (Math.random() - 0.5) * 80;  // z: depth
+        }
+        return pos;
+    }, []);
+
+    const ref = useRef<THREE.Points>(null);
+
+    useFrame((_state, delta) => {
+        if (!ref.current) return;
+        const pos = ref.current.geometry.attributes.position.array as Float32Array;
+        
+        for (let i = 0; i < count; i++) {
+            // Move down
+            pos[i * 3 + 1] -= delta * 3; // Falling speed
+
+            // Reset if below floor
+            if (pos[i * 3 + 1] < -20) {
+                pos[i * 3 + 1] = 40; // Reset to top
+                pos[i * 3] = (Math.random() - 0.5) * 80; // Random X
+                pos[i * 3 + 2] = (Math.random() - 0.5) * 80; // Random Z
+            }
+        }
+        ref.current.geometry.attributes.position.needsUpdate = true;
+        
+        // Gentle wind rotation
+        ref.current.rotation.y += delta * 0.05;
+    });
+
+    return (
+        <points ref={ref}>
+            <bufferGeometry>
+                <bufferAttribute
+                    attach="attributes-position"
+                    count={count}
+                    array={positions}
+                    itemSize={3}
+                />
+            </bufferGeometry>
+            <pointsMaterial
+                size={0.15}
+                color="#ffffff"
+                transparent
+                opacity={0.8}
+                sizeAttenuation={true}
+                depthWrite={false}
+                blending={THREE.AdditiveBlending}
+            />
+        </points>
+    );
+};
 
 const Controls = ({ handStateRef }: { handStateRef: React.MutableRefObject<HandState> }) => {
     const ref = useRef<any>(null);
@@ -62,6 +121,9 @@ const Scene: React.FC<SceneProps> = ({ handStateRef, uploadedTextures }) => {
         <pointLight position={[0, 10, 0]} intensity={2} color="#ff8800" distance={20} />
 
         <Environment preset="city" blur={0.8} />
+
+        {/* Falling Snow Effect */}
+        <Snow />
 
         {/* Floating Particles for Atmosphere */}
         <Sparkles count={500} scale={40} size={2} speed={0.4} opacity={0.5} color="#ffd966" />
