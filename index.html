@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HoloTree 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500&display=swap" rel="stylesheet">
+    <style>
+      /* Ensure root takes full height */
+      html, body, #root { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #050510; }
+      /* Custom scrollbar for tech feel */
+      ::-webkit-scrollbar { width: 0px; }
+      canvas { touch-action: none; outline: none; }
+      
+      #error-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.9); color: red; z-index: 9999;
+        display: none; padding: 20px; font-family: monospace; white-space: pre-wrap;
+      }
+    </style>
+    
+    <!-- Load MediaPipe Globals -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react/": "https://esm.sh/react@18.2.0/",
+        "react-dom": "https://esm.sh/react-dom@18.2.0",
+        "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?deps=react@18.2.0",
+        "three": "https://esm.sh/three@0.160.0",
+        "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?deps=three@0.160.0,react@18.2.0,react-dom@18.2.0",
+        "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?deps=three@0.160.0,react@18.2.0,react-dom@18.2.0,@react-three/fiber@8.15.16",
+        "postprocessing": "https://esm.sh/postprocessing@6.33.3?deps=three@0.160.0",
+        "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.16.0?deps=three@0.160.0,react@18.2.0,react-dom@18.2.0,@react-three/fiber@8.15.16,postprocessing@6.33.3"
+      }
+    }
+    </script>
+    <script>
+      window.onerror = function(msg, url, line, col, error) {
+        const div = document.getElementById('error-overlay');
+        div.style.display = 'block';
+        div.innerText = `ERROR: ${msg}\nLine: ${line}\nSource: ${url}`;
+        console.error("Global Error Caught:", error);
+      };
+    </script>
+  </head>
+  <body>
+    <div id="error-overlay"></div>
+    <div id="root"></div>
+  </body>
+</html>

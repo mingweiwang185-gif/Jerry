@@ -1,0 +1,7 @@
+{
+  "name": "HoloTree 3D",
+  "description": "A futuristic, gesture-controlled holographic Christmas tree powered by AI and WebGL.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
