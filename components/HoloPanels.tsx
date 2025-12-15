@@ -2,56 +2,75 @@ import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { HandState } from '../types';
-import { COLORS } from '../constants';
+import { COLORS, PHOTO_COUNT } from '../constants';
 
 interface PhotoGalleryProps {
   handState: React.MutableRefObject<HandState>;
   uploadedTextures: THREE.Texture[];
+  forceShow?: boolean;
 }
 
-const Frame = ({ texture, index, total, globalRot, handState }: any) => {
+const Frame = ({ texture, index, total, globalRot, handState, forceShow, radius = 14 }: any) => {
     const ref = useRef<THREE.Group>(null);
     
-    // Calculate standard orbital position
-    const baseRadius = 14; 
+    // Use passed radius or default
+    const baseRadius = radius; 
     const angleStep = (Math.PI * 2) / total;
     const angle = index * angleStep;
+
+    // Precalculate a random scatter direction for explosion mode
+    const explodeDir = useMemo(() => {
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.random() * Math.PI;
+        const dist = 30 + Math.random() * 20; // Explode far out
+        return new THREE.Vector3(
+            dist * Math.sin(phi) * Math.cos(theta),
+            dist * Math.cos(phi), // Allow Vertical variance
+            dist * Math.sin(phi) * Math.sin(theta)
+        );
+    }, []);
 
     useFrame((state, delta) => {
         if (!ref.current) return;
 
-        const { isPinching, isHeart } = handState.current;
+        const { isPinching, isHeart, isDoubleOpen } = handState.current;
 
         // Current rotation state
         const currentGlobalRot = globalRot.current;
         const finalAngle = angle + currentGlobalRot;
 
         // --- HEART MODE ADJUSTMENT ---
-        // If isHeart, we expand radius slightly to surround the particle heart.
-        // Set to 18 as requested by user
-        const currentRadius = isHeart ? 18 : baseRadius;
-        
-        // Lowered height from 5 to 2.5 to sit slightly below the heart center
+        const heartRadiusBuffer = baseRadius > 15 ? 4 : 4;
+        const currentRadius = isHeart ? baseRadius + heartRadiusBuffer : baseRadius;
         const currentYOffset = isHeart ? 2.5 : 0; 
 
-        // --- VISIBILITY / SELECTION LOGIC (Standard Mode) ---
+        // --- VISIBILITY / SELECTION LOGIC ---
+        // Normal Orbit Position
         const xRing = Math.cos(finalAngle) * currentRadius;
         const zRing = Math.sin(finalAngle) * currentRadius;
         
-        // Check alignment only if NOT in heart mode (Heart mode just rotates)
+        // Alignment Check for Focus Mode
         const camPos = state.camera.position;
         const camDir = new THREE.Vector3(camPos.x, 0, camPos.z).normalize();
         const itemDir = new THREE.Vector3(xRing, 0, zRing).normalize();
         const alignment = itemDir.dot(camDir);
         
-        // Focus Condition: Pointing AND facing camera AND NOT doing heart gesture
-        const isFocused = isPinching && alignment > 0.96 && !isHeart;
+        // Focus Condition: Pointing (Single or Double) AND facing camera AND NOT doing heart gesture
+        const isFocused = isPinching && alignment > 0.96 && !isHeart && !isDoubleOpen;
 
         // Dynamic visual parameters
         let targetScale = 1.0;
         let targetPos = new THREE.Vector3();
 
-        if (isFocused) {
+        if (isDoubleOpen) {
+            // --- EXPLODE MODE ---
+            // Fly out to random directions
+            targetPos.copy(explodeDir);
+            // Add current global rotation influence so they spiral out slightly
+            targetPos.applyAxisAngle(new THREE.Vector3(0,1,0), currentGlobalRot);
+            targetScale = 1.2; // Slightly bigger in chaos
+
+        } else if (isFocused) {
             // --- FOCUSED STATE ---
             targetScale = 3.5; 
             const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(state.camera.quaternion);
@@ -62,15 +81,12 @@ const Frame = ({ texture, index, total, globalRot, handState }: any) => {
             ref.current.position.lerp(targetPos, delta * 8);
         } else {
             // --- ORBIT STATE (Normal or Heart) ---
-            
-            // Standard orbital position
-            // Gentle bobbing motion (reduced in Heart mode for cleaner look)
             const yBob = Math.sin(state.clock.elapsedTime * 2 + index) * 0.5;
             const finalY = currentYOffset + yBob;
             
             targetPos.set(xRing, finalY, zRing);
             
-            // Use lerp for smooth transition between radius changes
+            // Use lerp for smooth transition
             ref.current.position.lerp(targetPos, delta * 4);
         }
 
@@ -99,13 +115,18 @@ const Frame = ({ texture, index, total, globalRot, handState }: any) => {
             {/* Photo */}
             <mesh>
                 <planeGeometry args={[5, 3.8]} />
-                <meshBasicMaterial map={texture} side={THREE.DoubleSide} />
+                <meshBasicMaterial 
+                    key={texture.uuid} 
+                    map={texture} 
+                    side={THREE.DoubleSide} 
+                    toneMapped={false} 
+                />
             </mesh>
         </group>
     );
 };
 
-const PhotoGallery: React.FC<PhotoGalleryProps> = ({ handState, uploadedTextures }) => {
+const PhotoGallery: React.FC<PhotoGalleryProps> = ({ handState, uploadedTextures, forceShow }) => {
     const groupRef = useRef<THREE.Group>(null);
     const rotationRef = useRef(0);
     const scaleRef = useRef(0); 
@@ -128,27 +149,42 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ handState, uploadedTextures
         return t;
     }, []);
 
+    // Logic: 
+    // 1. If uploaded < 6, fill with default up to 6.
+    // 2. If uploaded > 6, show all up to PHOTO_COUNT (12).
     const showTextures = useMemo(() => {
-        const arr = [...uploadedTextures];
-        while(arr.length < 6) arr.push(defaultTex);
-        return arr.slice(0,6);
+        let arr = [...uploadedTextures];
+        
+        // Ensure minimum of 6
+        if (arr.length < 6) {
+             const needed = 6 - arr.length;
+             for(let i=0; i<needed; i++) arr.push(defaultTex);
+        }
+        
+        // Cap at PHOTO_COUNT (12)
+        if (arr.length > PHOTO_COUNT) {
+            arr = arr.slice(0, PHOTO_COUNT);
+        }
+        
+        return arr;
     }, [uploadedTextures, defaultTex]);
 
+    // Calculate dynamic radius based on count
+    // Base radius is 14. If we have many photos (e.g. > 8), expand to 18 to avoid overlap.
+    const dynamicRadius = showTextures.length > 8 ? 19 : 14;
+
     useFrame((state, delta) => {
-        const { isOpen, isPinching, isHeart } = handState.current;
+        const { isOpen, isPinching, isHeart, isDoubleOpen } = handState.current;
         
-        // Active if Open, Pinching OR Heart
-        const isActive = isOpen || isPinching || isHeart;
+        // Active if Open, Pinching, Heart OR Double Open
+        const isActive = isOpen || isPinching || isHeart || isDoubleOpen || forceShow;
 
         // ROTATION LOGIC:
-        // Pause if Pinching.
-        // Moderate if Heart (Slow elegant orbit).
-        // Slow if Open.
-        // Fast if Closed (Background).
         let speed = 0.5;
-        if (isPinching) speed = 0;
-        else if (isHeart) speed = 0.3; // Reduced from 0.8 to 0.3 for a more peaceful heart moment
-        else if (isOpen) speed = 0.2;
+        if (isPinching) speed = 0; // Stop for focus
+        else if (isHeart) speed = 0.3; // Slow for heart
+        else if (isDoubleOpen) speed = 1.0; // Fast spin during explosion!
+        else if (isOpen || forceShow) speed = 0.2; // Slow roam
         
         rotationRef.current += speed * delta;
 
@@ -169,9 +205,11 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ handState, uploadedTextures
                     key={i} 
                     index={i} 
                     texture={t} 
-                    total={6} 
+                    total={showTextures.length} 
                     globalRot={rotationRef}
                     handState={handState}
+                    forceShow={forceShow}
+                    radius={dynamicRadius}
                 />
             ))}
         </group>

@@ -53,6 +53,7 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onStatusChange }) =
           onUpdate({
             isDetected: true,
             isOpen: true, 
+            isDoubleOpen: false, // Mouse mode simplifies to single gestures mostly
             isPinching: isLeft && !isRight, // Click acts as "Point/Focus"
             isHeart: isRight, // Right click acts as "Heart"
             pinchDistance: isLeft ? 0 : 1,
@@ -206,24 +207,40 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onStatusChange }) =
           landmarksList.forEach(landmarks => drawSkeleton(ctx, landmarks, canvas.width, canvas.height));
           
           let heartDetected = false;
-          let pointingDetected = false;
-          let openDetected = false;
+          let singlePointing = false;
+          let doublePointing = false;
+          let singleOpen = false;
+          let doubleOpen = false;
           
           // Check for Heart Gesture (Needs 2 hands)
           if (landmarksList.length === 2) {
               heartDetected = isHeartGesture(landmarksList[0], landmarksList[1]);
+              
+              if (!heartDetected) {
+                  // Check Double Gestures
+                  const hand1Open = isHandOpen(landmarksList[0]);
+                  const hand2Open = isHandOpen(landmarksList[1]);
+                  const hand1Point = isPointing(landmarksList[0]);
+                  const hand2Point = isPointing(landmarksList[1]);
+
+                  if (hand1Open && hand2Open) {
+                      doubleOpen = true;
+                  }
+                  if (hand1Point && hand2Point) {
+                      doublePointing = true;
+                  }
+              }
           }
 
-          // If Heart is detected, it overrides individual hand gestures
-          if (!heartDetected) {
-              // Check individual hands
+          // If no specific two-hand gesture, check individual
+          if (!heartDetected && !doubleOpen && !doublePointing) {
               for (const landmarks of landmarksList) {
                   if (isPointing(landmarks)) {
-                      pointingDetected = true;
-                      break; // Priority to pointing
+                      singlePointing = true;
+                      break; // Priority
                   }
                   if (isHandOpen(landmarks)) {
-                      openDetected = true;
+                      singleOpen = true;
                   }
               }
           }
@@ -232,12 +249,17 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onStatusChange }) =
           const primaryHand = landmarksList[0];
           const cursor = getCursorPosition(primaryHand);
 
+          // Focus logic: Triggered by Single Pointing OR Double Pointing
+          const isFocusing = (singlePointing || doublePointing) && !heartDetected;
+
           onUpdate({
               isDetected: true,
-              isOpen: openDetected && !pointingDetected && !heartDetected,
-              isPinching: pointingDetected && !heartDetected,
+              // Open (Scatter) is active if single open, AND not doing anything else more specific
+              isOpen: singleOpen && !isFocusing && !heartDetected && !doubleOpen,
+              isDoubleOpen: doubleOpen && !isFocusing && !heartDetected,
+              isPinching: isFocusing, // Maps both single "1" and double "1" to focus logic
               isHeart: heartDetected,
-              pinchDistance: pointingDetected ? 0 : 1,
+              pinchDistance: isFocusing ? 0 : 1,
               cursorX: cursor.x,
               cursorY: cursor.y
           });
@@ -245,6 +267,7 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onStatusChange }) =
           onUpdate({
               isDetected: false,
               isOpen: false,
+              isDoubleOpen: false,
               isPinching: false,
               isHeart: false,
               pinchDistance: 1,

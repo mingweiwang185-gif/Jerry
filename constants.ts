@@ -12,4 +12,4 @@ export const PARTICLE_COUNT = 4000;
 export const DUST_COUNT = 2500;
 export const TREE_HEIGHT = 24;
 export const TREE_RADIUS = 8;
-export const PHOTO_COUNT = 6;
+export const PHOTO_COUNT = 12;

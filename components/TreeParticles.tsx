@@ -59,8 +59,9 @@ const TreeParticles: React.FC<TreeParticlesProps> = ({ handState }) => {
   
   const candyTexture = useCandyCaneTexture();
   
-  // 0 = Tree, 1 = Scatter, 2 = Heart
-  const scatterFactorRef = useRef(0);
+  // 0 = Tree, 1 = Active
+  const scatterFactorRef = useRef(0); // Lateral scatter (One hand)
+  const explodeFactorRef = useRef(0); // Omni explosion (Two hands)
   const heartFactorRef = useRef(0);
   
   // Group rotation accumulator
@@ -82,7 +83,7 @@ const TreeParticles: React.FC<TreeParticlesProps> = ({ handState }) => {
         const rTree = rMax * (0.3 + Math.random() * 0.7);
         const treePos = new THREE.Vector3(Math.cos(angle)*rTree, yTree, Math.sin(angle)*rTree);
 
-        // 2. Scatter Pos
+        // 2. Scatter Pos (Lateral Disk)
         const rScatter = 10 + Math.random() * 20; 
         const scatterAngle = Math.random() * Math.PI * 2;
         const scatterHeight = (Math.random() - 0.5) * 10;
@@ -92,15 +93,24 @@ const TreeParticles: React.FC<TreeParticlesProps> = ({ handState }) => {
             rScatter * Math.sin(scatterAngle)
         );
 
-        // 3. Heart Pos (Hollow Shell via Rejection Sampling)
-        // Formula: (x^2 + 9/4y^2 + z^2 - 1)^3 - x^2*y^3 - 9/80*z^2*y^3 <= 0
+        // 3. Omni Explosion Pos (Sphere)
+        // Distribute randomly in a sphere of radius ~30
+        const rExplode = 15 + Math.random() * 25; 
+        const thetaExplode = Math.random() * Math.PI * 2;
+        const phiExplode = Math.acos(2 * Math.random() - 1);
+        const omniPos = new THREE.Vector3(
+            rExplode * Math.sin(phiExplode) * Math.cos(thetaExplode),
+            rExplode * Math.sin(phiExplode) * Math.sin(thetaExplode),
+            rExplode * Math.cos(phiExplode)
+        );
+
+        // 4. Heart Pos (Hollow Shell via Rejection Sampling)
         let hx = 0, hy = 0, hz = 0;
         let valid = false;
         let safety = 0;
         
         while(!valid && safety < 2000) {
             safety++;
-            // Sample a box. 
             const _x = (Math.random() * 2.8) - 1.4;
             const _y = (Math.random() * 2.8) - 1.4;
             const _z = (Math.random() * 1.8) - 0.9; 
@@ -110,13 +120,9 @@ const TreeParticles: React.FC<TreeParticlesProps> = ({ handState }) => {
             const z2 = _z*_z;
             const y3 = y2 * _y;
             
-            // 9/4 = 2.25
             const a = x2 + 2.25*y2 + z2 - 1;
-            // 9/80 = 0.1125
             const val = (a*a*a) - (x2*y3) - (0.1125*z2*y3);
             
-            // HOLLOW LOGIC:
-            // Use -0.08 for a shell that is thin but continuous (no gaps, no deformities).
             if (val <= 0 && val > -0.08) {
                 valid = true;
                 hx = _x;
@@ -133,7 +139,6 @@ const TreeParticles: React.FC<TreeParticlesProps> = ({ handState }) => {
              hy = Math.cos(phi);
              hz = Math.sin(phi) * Math.sin(theta);
         }
-        
         const heartPos = new THREE.Vector3(hx, hy, hz);
 
         // Assign Type
@@ -150,7 +155,7 @@ const TreeParticles: React.FC<TreeParticlesProps> = ({ handState }) => {
         if(type==='RED') counts.RED++;
         if(type==='CANDY') counts.CANDY++;
 
-        all.push({ type, treePos, scatterPos, heartPos, scale: 0.3 + Math.random()*0.5, speed: Math.random() });
+        all.push({ type, treePos, scatterPos, omniPos, heartPos, scale: 0.3 + Math.random()*0.5, speed: Math.random() });
     }
     return { particles: all, counts };
   }, []);
@@ -158,85 +163,88 @@ const TreeParticles: React.FC<TreeParticlesProps> = ({ handState }) => {
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
   useFrame((state, delta) => {
-      const { isOpen, isPinching, isHeart } = handState.current;
+      const { isOpen, isDoubleOpen, isPinching, isHeart } = handState.current;
       
-      const isGalaxyActive = isOpen || isPinching; 
+      const isScatterActive = (isOpen && !isDoubleOpen) || isPinching;
+      const isExplodeActive = isDoubleOpen;
 
       // Target Factors
-      const targetScatter = isGalaxyActive ? 1.0 : 0.0;
+      const targetScatter = isScatterActive ? 1.0 : 0.0;
+      const targetExplode = isExplodeActive ? 1.0 : 0.0;
       const targetHeart = isHeart ? 1.0 : 0.0;
       
       // Speed
-      const rotateSpeed = isPinching ? 0 : (isOpen ? 0.2 : 0.5);
+      const rotateSpeed = isPinching ? 0 : (isOpen || isDoubleOpen ? 0.2 : 0.5);
 
       // Lerp factors
       scatterFactorRef.current = THREE.MathUtils.lerp(scatterFactorRef.current, targetScatter, delta * 3);
+      explodeFactorRef.current = THREE.MathUtils.lerp(explodeFactorRef.current, targetExplode, delta * 2.5);
       heartFactorRef.current = THREE.MathUtils.lerp(heartFactorRef.current, targetHeart, delta * 2); 
       
       // Update Rotation
       rotationRef.current += rotateSpeed * delta;
 
       const scatterMix = scatterFactorRef.current;
+      const explodeMix = explodeFactorRef.current;
       const heartMix = heartFactorRef.current;
       const rot = rotationRef.current;
-      
+
       let idxGreen=0, idxGoldBox=0, idxGoldSphere=0, idxRed=0, idxCandy=0;
 
-      // Tree/Galaxy Rotation math
       const cos = Math.cos(rot);
       const sin = Math.sin(rot);
 
-      // Heart Billboard & Scaling Math
       const camPos = state.camera.position;
       const camAngle = Math.atan2(camPos.x, camPos.z);
       const sinCam = Math.sin(camAngle);
       const cosCam = Math.cos(camAngle);
 
-      // --- DYNAMIC SCALING & BREATHING ---
-      const baseScale = 12; // Slightly larger for clarity
-      
+      const baseScale = 12; 
       const time = state.clock.elapsedTime;
       const breathe = 1 + Math.sin(time * 2.5) * 0.05; 
-      
       const finalScale = baseScale * breathe;
-
-      // Center of the heart in world space.
       const heartCenterY = 5.0; 
 
       data.particles.forEach((p) => {
-          // 1. Calculate Tree -> Scatter Base Position (Unrotated)
-          const xBase = p.treePos.x + (p.scatterPos.x - p.treePos.x) * scatterMix;
-          const yBase = p.treePos.y + (p.scatterPos.y - p.treePos.y) * scatterMix;
-          const zBase = p.treePos.z + (p.scatterPos.z - p.treePos.z) * scatterMix;
+          // --- MIXING LOGIC ---
+          // 1. Start with Tree
+          let cx = p.treePos.x;
+          let cy = p.treePos.y;
+          let cz = p.treePos.z;
 
-          // 2. Apply Rotation ONLY to the Tree/Scatter layer
-          const xRotated = xBase * cos - zBase * sin;
-          const zRotated = xBase * sin + zBase * cos;
+          // 2. Mix to Scatter (Lateral)
+          if (scatterMix > 0.01) {
+              cx = THREE.MathUtils.lerp(cx, p.scatterPos.x, scatterMix);
+              cy = THREE.MathUtils.lerp(cy, p.scatterPos.y, scatterMix);
+              cz = THREE.MathUtils.lerp(cz, p.scatterPos.z, scatterMix);
+          }
 
-          // 3. Heart Target Position
-          
-          let hx = p.heartPos.x;
-          let hy = p.heartPos.y;
-          let hz = p.heartPos.z;
+          // 3. Mix to Explode (Omnidirectional) - Overrides scatter if both present
+          if (explodeMix > 0.01) {
+              cx = THREE.MathUtils.lerp(cx, p.omniPos.x, explodeMix);
+              cy = THREE.MathUtils.lerp(cy, p.omniPos.y, explodeMix);
+              cz = THREE.MathUtils.lerp(cz, p.omniPos.z, explodeMix);
+          }
 
-          // FIX: Removed all manual vertex manipulation / conditional stretching.
-          // Using pure uniform scaling guarantees the heart shape is perfectly round and smooth.
-          
-          const hxScaled = hx * finalScale;
-          // Scale Y by 1.2 to make it slightly elegant/tall but keeping smooth curvature
-          const hyScaled = hy * finalScale * 1.35; 
-          // Scale Z by 0.5 to make it flatter (better for UI presentation)
-          const hzScaled = hz * finalScale * 0.5; 
+          // Apply Rotation to the "Cloud" (Tree/Scatter/Explode) before Heart transformation
+          const xRotated = cx * cos - cz * sin;
+          const zRotated = cx * sin + cz * cos;
+          const yRotated = cy;
+
+          // 4. Heart Target Position
+          const hxScaled = p.heartPos.x * finalScale;
+          const hyScaled = p.heartPos.y * finalScale * 1.35; 
+          const hzScaled = p.heartPos.z * finalScale * 0.5; 
 
           // Billboard Rotation (Face Camera)
           const hxFace = hxScaled * cosCam + hzScaled * sinCam;
           const hzFace = -hxScaled * sinCam + hzScaled * cosCam;
-          const hyFace = hyScaled + heartCenterY; // Apply vertical offset
+          const hyFace = hyScaled + heartCenterY; 
 
-          // 4. Blend (Tree -> Heart)
-          const x = xRotated + (hxFace - xRotated) * heartMix;
-          const y = yBase + (hyFace - yBase) * heartMix;
-          const z = zRotated + (hzFace - zRotated) * heartMix;
+          // 5. Final Blend to Heart
+          const x = THREE.MathUtils.lerp(xRotated, hxFace, heartMix);
+          const y = THREE.MathUtils.lerp(yRotated, hyFace, heartMix);
+          const z = THREE.MathUtils.lerp(zRotated, hzFace, heartMix);
 
           dummy.position.set(x, y, z);
 
@@ -244,9 +252,7 @@ const TreeParticles: React.FC<TreeParticlesProps> = ({ handState }) => {
           const s = p.scale * (1 + Math.sin(time * 3 + p.speed * 15) * 0.2);
           dummy.scale.set(s, s, s);
           
-          // Rotation of individual particle
           const sway = isHeart ? Math.sin(time * 3 + p.speed * 100) * 0.2 : 0;
-          
           const spinSpeed = p.speed * (isHeart ? 2 : 10);
           dummy.rotation.set(
               rot * p.speed + spinSpeed + sway, 
@@ -270,7 +276,7 @@ const TreeParticles: React.FC<TreeParticlesProps> = ({ handState }) => {
 
   return (
     <group>
-        <group scale={[1 - Math.max(scatterFactorRef.current, heartFactorRef.current), 1 - Math.max(scatterFactorRef.current, heartFactorRef.current), 1 - Math.max(scatterFactorRef.current, heartFactorRef.current)]}>
+        <group scale={[1 - Math.max(scatterFactorRef.current, heartFactorRef.current, explodeFactorRef.current), 1 - Math.max(scatterFactorRef.current, heartFactorRef.current, explodeFactorRef.current), 1 - Math.max(scatterFactorRef.current, heartFactorRef.current, explodeFactorRef.current)]}>
             <TopStar />
         </group>
 
