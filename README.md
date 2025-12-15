@@ -99,23 +99,3 @@ src/
 
 ---
 
-## 🤝 贡献 (Contributing)
-
-欢迎提交 Issue 或 Pull Request！
-如果你有更酷的粒子算法或者更有趣的交互想法，请随时分享。
-
-1.  Fork 本项目
-2.  创建你的 Feature 分支 (`git checkout -b feature/AmazingFeature`)
-3.  提交你的修改 (`git commit -m 'Add some AmazingFeature'`)
-4.  推送到分支 (`git push origin feature/AmazingFeature`)
-5.  开启 Pull Request
-
----
-
-## 📄 许可证 (License)
-
-Distributed under the MIT License. See `LICENSE` for more information.
-
----
-
-<p align="center">Made with ❤️ for Christmas</p>
