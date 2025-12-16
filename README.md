@@ -2,7 +2,9 @@
 
 **HoloTree 3D** 是一个极具未来感的互动式 3D 圣诞树体验项目。它利用 AI 手势识别技术，结合 WebGL 粒子特效，让用户通过手势与全息圣诞树进行互动，唤醒记忆照片，并探索藏在树下的许愿盲盒。
 
+**🌐 在线演示 (Live Demo):** [https://weigesture-magic-tree.xyz](https://weigesture-magic-tree.xyz)
 
+![Project Preview](./preview.png)
 
 ---
 
@@ -15,7 +17,7 @@
     *   树下的礼物盒不仅是装饰，点击它们会蹦出惊喜。
     *   **Make a Wish**: 用户可以写下自己的愿望，藏进盲盒里等待被发现。
 *   **🎵 氛围音乐播放器**: 内置多首圣诞经典曲目，支持上传自定义背景音乐。
-*   **🖱️ 智能回退模式**: 如果没有摄像头权限，系统会自动切换到鼠标交互模式。
+*   **🚀 浏览器优化模式**: 使用 Electron 作为启动器，自动唤起系统默认浏览器，确保 AI 性能和兼容性最佳。
 
 ---
 
@@ -54,25 +56,37 @@ npm install
 yarn install
 ```
 
-### 3. 启动开发服务器
+### 3. 开发模式运行
 ```bash
+# 启动 Web 浏览器模式
 npm run dev
-# 或者
-yarn dev
+
+# 启动 桌面应用开发模式
+npm run electron:dev
 ```
 
-打开浏览器访问终端显示的地址（通常是 `http://localhost:5173`）。
+---
 
-### 4. 构建生产版本
-```bash
-npm run build
-```
+## 📦 打包为 EXE (Build Executable)
+
+想要生成 Windows 可执行文件 (.exe) 分享给朋友？
+
+1.  **运行构建命令**:
+    ```bash
+    npm run electron:build
+    ```
+
+2.  **查找文件**:
+    打包完成后，可执行文件将生成在 `release/` 目录下。
+
+> **注意**: 该程序现在是一个“启动器 (Launcher)”，运行 EXE 后会打开一个小窗口并自动跳转到你的浏览器中运行，这是为了解决手势识别库在 Electron 内部的兼容性问题。
 
 ---
 
 ## 🛠️ 技术栈 (Tech Stack)
 
 *   **核心框架**: [React 18](https://react.dev/) + [Vite](https://vitejs.dev/) + [TypeScript](https://www.typescriptlang.org/)
+*   **桌面封装**: [Electron](https://www.electronjs.org/)
 *   **3D 渲染**: [Three.js](https://threejs.org/) + [React Three Fiber](https://docs.pmnd.rs/react-three-fiber)
 *   **AI 视觉**: [MediaPipe Hands](https://developers.google.com/mediapipe) (用于实时手部追踪)
 *   **UI 样式**: [Tailwind CSS](https://tailwindcss.com/)
@@ -80,22 +94,170 @@ npm run build
 
 ---
 
-## 📂 项目结构
+## 🆘 Electron Main Process Code (Launcher)
 
-```
-src/
-├── components/
-│   ├── Scene.tsx           # 3D 场景主入口
-│   ├── TreeParticles.tsx   # 粒子树核心逻辑
-│   ├── HoloPanels.tsx      # 照片画廊组件
-│   ├── HandTracker.tsx     # 摄像头与 AI 识别组件
-│   └── ...
-├── services/
-│   └── gestureService.ts   # 手势识别算法 (判断比心、指引等)
-├── types.ts                # TypeScript 类型定义
-├── App.tsx                 # UI 布局与状态管理
-└── ...
-```
+如果你需要手动修复或查看 `electron/main.cjs` 的代码，请参考以下内容。这段代码创建了一个本地静态文件服务器，并唤起默认浏览器。
 
----
+**File: `electron/main.cjs`**
 
+```javascript
+const { app, BrowserWindow, shell, ipcMain } = require('electron');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+const PORT = 54321;
+// Determine if we are in dev mode based on npm script or env
+const isDev = process.env.npm_lifecycle_event === 'electron:dev' || !app.isPackaged;
+
+// FIXED: Path to the built files
+// In both Dev (unpacked) and Prod (packaged in asar), the relative structure 
+// between electron/main.cjs and dist/ folder is preserved by electron-builder configuration.
+// So we simply go up one level from this file.
+const DIST_DIR = path.join(__dirname, '../dist');
+
+let server;
+
+const mimeTypes = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.wav': 'audio/wav',
+  '.mp3': 'audio/mpeg',
+  '.mp4': 'video/mp4',
+  '.woff': 'application/font-woff',
+  '.ttf': 'application/font-ttf',
+  '.eot': 'application/vnd.ms-fontobject',
+  '.otf': 'application/font-otf',
+  '.wasm': 'application/wasm'
+};
+
+function startServer() {
+  server = http.createServer((request, response) => {
+    // Basic security: prevent directory traversal
+    const safePath = path.normalize(request.url).replace(/^(\.\.[\/\\])+/, '');
+    let filePath = path.join(DIST_DIR, safePath === '/' ? 'index.html' : safePath);
+    
+    // Remove query strings
+    filePath = filePath.split('?')[0];
+
+    const extname = String(path.extname(filePath)).toLowerCase();
+    const contentType = mimeTypes[extname] || 'application/octet-stream';
+
+    fs.readFile(filePath, (error, content) => {
+      if (error) {
+        if(error.code == 'ENOENT'){
+          // SPA Fallback: If file not found, serve index.html (for React Router etc)
+          const fallbackPath = path.join(DIST_DIR, 'index.html');
+          fs.readFile(fallbackPath, (err, indexContent) => {
+             if (err) {
+                 console.error(`Failed to load fallback index.html from: ${fallbackPath}`);
+                 response.writeHead(500);
+                 response.end(`Error loading index.html from "${DIST_DIR}". Did you run "npm run build"?`);
+             } else {
+                 response.writeHead(200, { 'Content-Type': 'text/html' });
+                 response.end(indexContent, 'utf-8');
+             }
+          });
+        } else {
+          response.writeHead(500);
+          response.end('Server Error: ' + error.code);
+        }
+      } else {
+        response.writeHead(200, { 'Content-Type': contentType });
+        response.end(content, 'utf-8');
+      }
+    });
+  });
+
+  server.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}/`);
+    console.log(`Serving files from: ${DIST_DIR}`);
+    shell.openExternal(`http://localhost:${PORT}`);
+  });
+}
+
+function createWindow() {
+  // Create a small "Launcher" window to keep the process alive
+  const win = new BrowserWindow({
+    width: 400,
+    height: 300,
+    title: "HoloTree Launcher",
+    autoHideMenuBar: true,
+    backgroundColor: '#050510',
+    // icon: path.join(__dirname, '../public/icon.png'), // If you have an icon
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+
+  const statusText = isDev ? 'Development Mode (Vite)' : 'Production Mode (Static)';
+  const targetUrl = isDev ? 'http://localhost:5173' : `http://localhost:${PORT}`;
+
+  // Simple HTML status page for the launcher window
+  const statusHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>HoloTree Launcher</title>
+      <style>
+        body { background:#050510; color:#ffd966; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; text-align:center; margin:0; user-select:none; }
+        h3 { margin: 0 0 10px 0; font-family: serif; font-style: italic; font-size: 24px; }
+        p { opacity:0.7; font-size: 14px; margin: 5px 0; color: #fff; }
+        .url { font-family:monospace; color:#666; font-size: 12px; margin-bottom: 20px; }
+        .btn { margin-top:10px; padding:8px 16px; background:rgba(255,217,102,0.1); border:1px solid #ffd966; color:#ffd966; cursor:pointer; border-radius:4px; font-size:12px; text-transform:uppercase; letter-spacing:1px; transition:0.2s; min-width: 120px; }
+        .btn:hover { background:rgba(255,217,102,0.3); }
+        .btn.danger { border-color:#ff4444; color:#ff4444; background:rgba(255,68,68,0.1); }
+        .btn.danger:hover { background:rgba(255,68,68,0.3); }
+        .pulse { width: 12px; height: 12px; background: #00ff00; border-radius: 50%; box-shadow: 0 0 15px #00ff00; margin-bottom: 20px; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } 100% { opacity: 1; transform: scale(1); } }
+      </style>
+    </head>
+    <body>
+      <div class="pulse"></div>
+      <h3>HoloTree Running</h3>
+      <p>${statusText}</p>
+      <p>App opened in your default browser.</p>
+      <p class="url">${targetUrl}</p>
+      <button class="btn" onclick="require('electron').ipcRenderer.send('reopen')">Re-open Browser</button>
+      <button class="btn danger" onclick="window.close()">Exit App</button>
+    </body>
+    </html>
+  `;
+  
+  win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(statusHtml)}`);
+}
+
+app.whenReady().then(() => {
+  if (isDev) {
+    // In dev mode, we assume 'npm run electron:dev' is used, which starts Vite separately.
+    // We just open the URL.
+    createWindow();
+    shell.openExternal('http://localhost:5173');
+  } else {
+    // In production, we start our own static server.
+    startServer();
+    createWindow();
+  }
+});
+
+// Handle re-open request from button
+ipcMain.on('reopen', () => {
+  if (isDev) {
+    shell.openExternal('http://localhost:5173');
+  } else {
+    shell.openExternal(`http://localhost:${PORT}`);
+  }
+});
+
+app.on('window-all-closed', () => {
+  if (server) server.close();
+  app.quit();
+});

@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import Scene from './components/Scene';
 import HandTracker from './components/HandTracker';
@@ -93,6 +94,22 @@ const FloatingWishes = ({ active, customWishes }: { active: boolean, customWishe
     );
 };
 
+// Reusable Modal Style
+const ModalBase = ({ title, children, onClose }: { title: string, children: React.ReactNode, onClose: () => void }) => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+        <div className="bg-[#0a0a1a] border border-[#ffd966] w-full max-w-sm rounded-2xl p-6 shadow-[0_0_50px_rgba(255,217,102,0.2)] relative animate-in zoom-in-95 duration-300">
+            <button 
+                onClick={onClose}
+                className="absolute top-3 right-4 text-[#ffd966]/50 hover:text-[#ffd966] text-xl transition-colors"
+            >
+                ✕
+            </button>
+            <h3 className="text-[#ffd966] font-serif text-2xl italic mb-1 text-center">{title}</h3>
+            {children}
+        </div>
+    </div>
+);
+
 // Wish Modal Component
 const WishModal = ({ isOpen, onClose, onSubmit }: { isOpen: boolean, onClose: () => void, onSubmit: (text: string) => void }) => {
     const [text, setText] = useState("");
@@ -109,41 +126,66 @@ const WishModal = ({ isOpen, onClose, onSubmit }: { isOpen: boolean, onClose: ()
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-[#0a0a1a] border border-[#ffd966] w-full max-w-sm rounded-2xl p-6 shadow-[0_0_50px_rgba(255,217,102,0.2)] relative">
+        <ModalBase title="Make a Wish" onClose={onClose}>
+            <p className="text-[#ffd966]/60 text-xs text-center mb-6 uppercase tracking-widest">Hide it in a gift box</p>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                <textarea 
+                    autoFocus
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder="Write your wish..."
+                    maxLength={20}
+                    className="w-full h-24 bg-white/5 border border-[#ffd966]/30 rounded-lg p-3 text-[#ffd966] placeholder-[#ffd966]/20 focus:outline-none focus:border-[#ffd966] focus:bg-white/10 resize-none text-center font-serif text-lg"
+                />
+                <div className="flex justify-between text-[10px] text-[#ffd966]/40 px-1">
+                    <span>Keep it short for magic</span>
+                    <span>{text.length}/20</span>
+                </div>
                 <button 
-                    onClick={onClose}
-                    className="absolute top-3 right-4 text-[#ffd966]/50 hover:text-[#ffd966] text-xl"
+                    type="submit"
+                    disabled={!text.trim()}
+                    className="w-full py-3 bg-[#ffd966] text-black font-bold uppercase tracking-widest rounded-lg hover:bg-[#ffeebb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-[0_0_20px_rgba(255,217,102,0.3)] hover:shadow-[0_0_30px_rgba(255,217,102,0.5)]"
                 >
-                    ✕
+                    Send to Tree
                 </button>
-                
-                <h3 className="text-[#ffd966] font-serif text-2xl italic mb-1 text-center">Make a Wish</h3>
-                <p className="text-[#ffd966]/60 text-xs text-center mb-6 uppercase tracking-widest">Hide it in a gift box</p>
-                
-                <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                    <textarea 
-                        autoFocus
-                        value={text}
-                        onChange={(e) => setText(e.target.value)}
-                        placeholder="Write your wish or expectation here..."
-                        maxLength={20}
-                        className="w-full h-24 bg-white/5 border border-[#ffd966]/30 rounded-lg p-3 text-[#ffd966] placeholder-[#ffd966]/20 focus:outline-none focus:border-[#ffd966] focus:bg-white/10 resize-none text-center font-serif text-lg"
-                    />
-                    <div className="flex justify-between text-[10px] text-[#ffd966]/40 px-1">
-                        <span>Keep it short for magic</span>
-                        <span>{text.length}/20</span>
-                    </div>
-                    <button 
-                        type="submit"
-                        disabled={!text.trim()}
-                        className="w-full py-3 bg-[#ffd966] text-black font-bold uppercase tracking-widest rounded-lg hover:bg-[#ffeebb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-[0_0_20px_rgba(255,217,102,0.3)] hover:shadow-[0_0_30px_rgba(255,217,102,0.5)]"
-                    >
-                        Send to Tree
-                    </button>
-                </form>
-            </div>
-        </div>
+            </form>
+        </ModalBase>
+    );
+};
+
+// ID/Name Modal Component
+const IdModal = ({ isOpen, onClose, onSubmit, currentId }: { isOpen: boolean, onClose: () => void, onSubmit: (text: string) => void, currentId: string }) => {
+    const [text, setText] = useState(currentId);
+
+    if (!isOpen) return null;
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSubmit(text.trim());
+        onClose();
+    };
+
+    return (
+        <ModalBase title="Personalize" onClose={onClose}>
+            <p className="text-[#ffd966]/60 text-xs text-center mb-6 uppercase tracking-widest">To Whom is this video for?</p>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                <input 
+                    type="text"
+                    autoFocus
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder="e.g. Alice, My Love"
+                    maxLength={15}
+                    className="w-full h-14 bg-white/5 border border-[#ffd966]/30 rounded-lg p-3 text-[#ffd966] placeholder-[#ffd966]/20 focus:outline-none focus:border-[#ffd966] focus:bg-white/10 text-center font-serif text-2xl"
+                />
+                <button 
+                    type="submit"
+                    className="w-full py-3 bg-gradient-to-r from-[#ffd966] to-[#ffaa00] text-black font-bold uppercase tracking-widest rounded-lg hover:brightness-110 transition-all shadow-[0_0_20px_rgba(255,217,102,0.3)]"
+                >
+                    Set Name Tag
+                </button>
+            </form>
+        </ModalBase>
     );
 };
 
@@ -171,6 +213,10 @@ const App: React.FC = () => {
   // Custom Wishes State
   const [customWishes, setCustomWishes] = useState<string[]>([]);
   const [isWishModalOpen, setIsWishModalOpen] = useState(false);
+
+  // User ID / Name Tag State
+  const [userId, setUserId] = useState<string>("");
+  const [isIdModalOpen, setIsIdModalOpen] = useState(false);
 
   // Music State
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
@@ -326,6 +372,10 @@ const App: React.FC = () => {
       setCustomWishes(prev => [...prev, wish]);
   };
 
+  const handleSetId = (id: string) => {
+      setUserId(id);
+  };
+
   const handleClearPhotos = () => {
       setUploadedTextures([]);
       setForceShowGallery(true);
@@ -394,12 +444,32 @@ const App: React.FC = () => {
           onSubmit={handleAddWish} 
       />
 
+      <IdModal 
+          isOpen={isIdModalOpen} 
+          onClose={() => setIsIdModalOpen(false)} 
+          onSubmit={handleSetId}
+          currentId={userId}
+      />
+
       <div className="absolute inset-0 pointer-events-none">
           {/* Top Header */}
-          <div className="absolute top-0 left-0 w-full p-8 flex flex-col items-center z-10">
+          <div className="absolute top-0 left-0 w-full p-8 flex flex-col items-center z-10 transition-all duration-500">
              <h1 className="text-5xl md:text-7xl font-serif italic font-bold text-transparent bg-clip-text bg-gradient-to-b from-[#fffbe6] to-[#ffd966] drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)] tracking-wide text-center">
                 Christmas Memories
              </h1>
+             
+             {/* Personalized ID Display - OPTIMIZED: Smaller, Gold Gradient, Mixed Fonts */}
+             {userId && (
+                 <div className="mt-2 flex flex-col items-center animate-in fade-in slide-in-from-top-4 duration-700">
+                     <span className="font-['Rajdhani'] text-[#ffd966]/60 text-xs tracking-[0.3em] uppercase mb-0 shadow-black drop-shadow-sm font-bold">
+                        Designed For
+                     </span>
+                     <span className="font-['Great_Vibes'] text-4xl md:text-5xl text-transparent bg-clip-text bg-gradient-to-r from-[#ffd966] via-[#fff8dc] to-[#ffd966] drop-shadow-[0_0_15px_rgba(255,217,102,0.4)] pb-2 pr-2">
+                        {userId}
+                     </span>
+                 </div>
+             )}
+             
              <div className="w-32 h-[1px] bg-gradient-to-r from-transparent via-[#ffd966] to-transparent mt-4 mb-2"></div>
              <div className="text-sm tracking-[0.2em] text-[#fffbe6] opacity-80 uppercase">Gesture Controlled Experience</div>
           </div>
@@ -483,16 +553,29 @@ const App: React.FC = () => {
                {/* Divider */}
                <div className="w-px h-6 bg-[#ffd966]/30 hidden md:block"></div>
 
-               {/* Wish Button */}
-               <button 
-                   onClick={() => setIsWishModalOpen(true)}
-                   className="cursor-pointer group relative flex items-center gap-2 px-4 py-1.5 bg-black/40 border border-purple-300/40 hover:border-purple-300 hover:bg-purple-300/10 backdrop-blur-md rounded-full overflow-hidden transition-all duration-500 hover:scale-105"
-               >
-                  <span className="font-serif text-xs tracking-widest text-purple-100 group-hover:text-white uppercase whitespace-nowrap">
-                       Make a Wish
-                  </span>
-                  <span className="text-purple-300 text-xs">✨</span>
-               </button>
+               {/* Wish & ID Group */}
+               <div className="flex gap-2 items-center">
+                    <button 
+                        onClick={() => setIsWishModalOpen(true)}
+                        className="cursor-pointer group relative flex items-center gap-2 px-4 py-1.5 bg-black/40 border border-purple-300/40 hover:border-purple-300 hover:bg-purple-300/10 backdrop-blur-md rounded-full overflow-hidden transition-all duration-500 hover:scale-105"
+                    >
+                        <span className="font-serif text-xs tracking-widest text-purple-100 group-hover:text-white uppercase whitespace-nowrap">
+                            Wish
+                        </span>
+                        <span className="text-purple-300 text-xs">✨</span>
+                    </button>
+                    
+                    {/* ID / Tag Button */}
+                    <button 
+                        onClick={() => setIsIdModalOpen(true)}
+                        className="cursor-pointer group relative flex items-center gap-2 px-4 py-1.5 bg-black/40 border border-green-300/40 hover:border-green-300 hover:bg-green-300/10 backdrop-blur-md rounded-full overflow-hidden transition-all duration-500 hover:scale-105"
+                    >
+                        <span className="font-serif text-xs tracking-widest text-green-100 group-hover:text-white uppercase whitespace-nowrap">
+                            {userId ? 'Edit To' : 'To:'}
+                        </span>
+                        <span className="text-green-300 text-xs">🏷️</span>
+                    </button>
+               </div>
 
           </div>
       </div>
